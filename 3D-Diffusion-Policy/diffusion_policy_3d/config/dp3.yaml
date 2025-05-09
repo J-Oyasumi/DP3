@@ -100,7 +100,7 @@ optimizer:
 training:
   device: "cuda:0"
   seed: 42
-  debug: False
+  debug: True
   resume: True
   lr_scheduler: cosine
   lr_warmup_steps: 500
