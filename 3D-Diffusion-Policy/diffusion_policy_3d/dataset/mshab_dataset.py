@@ -13,10 +13,10 @@ class MSHABDataset(BaseDataset):
     def __init__(self,
                  zarr_path,
                  horizon,
-                 pad_before=0,
-                 pad_after=0,
-                 seed=42,
-                 val_ratio=0.1,
+                 pad_before,
+                 pad_after,
+                 seed,
+                 val_ratio,
                  max_train_episodes=None):
         super().__init__()
         self.replay_buffer = ReplayBuffer.copy_from_path(

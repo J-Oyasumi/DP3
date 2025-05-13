@@ -1,3 +1,3 @@
-from .mshab import MSHABEnv
+from .mshab_wrapper import MSHABEnv
 
 

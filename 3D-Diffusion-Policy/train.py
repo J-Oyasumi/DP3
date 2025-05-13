@@ -91,10 +91,10 @@ class TrainDP3Workspace:
         
         # resume training
         if cfg.training.resume:
-            lastest_ckpt_path = self.get_checkpoint_path()
-            if lastest_ckpt_path.is_file():
-                print(f"Resuming from checkpoint {lastest_ckpt_path}")
-                self.load_checkpoint(path=lastest_ckpt_path)
+            ckpt_path = self.get_checkpoint_path()
+            if ckpt_path.is_file():
+                print(f"Resuming from checkpoint {ckpt_path}")
+                self.load_checkpoint(path=ckpt_path)
 
         # configure dataset
         dataset: BaseDataset
@@ -309,20 +309,22 @@ class TrainDP3Workspace:
                     self.save_checkpoint()
                 if cfg.checkpoint.save_last_snapshot:
                     self.save_snapshot()
+                
+                self.save_checkpoint(epoch=self.epoch)
 
                 # sanitize metric names
-                metric_dict = dict()
-                for key, value in step_log.items():
-                    new_key = key.replace('/', '_')
-                    metric_dict[new_key] = value
+                # metric_dict = dict()
+                # for key, value in step_log.items():
+                #     new_key = key.replace('/', '_')
+                #     metric_dict[new_key] = value
                 
                 # We can't copy the last checkpoint here
                 # since save_checkpoint uses threads.
                 # therefore at this point the file might have been empty!
-                topk_ckpt_path = topk_manager.get_ckpt_path(metric_dict)
+                # topk_ckpt_path = topk_manager.get_ckpt_path(metric_dict)
 
-                if topk_ckpt_path is not None:
-                    self.save_checkpoint(path=topk_ckpt_path)
+                # if topk_ckpt_path is not None:
+                #     self.save_checkpoint(path=topk_ckpt_path)
             # ========= eval end for this epoch ==========
             policy.train()
 
@@ -333,15 +335,19 @@ class TrainDP3Workspace:
             self.epoch += 1
             del step_log
 
-    def eval(self):
+    def eval(self, epoch=None):
         # load the latest checkpoint
         
         cfg = copy.deepcopy(self.cfg)
-        
-        lastest_ckpt_path = self.get_checkpoint_path(tag="latest")
-        if lastest_ckpt_path.is_file():
-            cprint(f"Resuming from checkpoint {lastest_ckpt_path}", 'magenta')
-            self.load_checkpoint(path=lastest_ckpt_path)
+
+        if epoch is None:
+            ckpt_path = self.get_checkpoint_path(tag="latest")
+        else:
+            ckpt_path = self.get_checkpoint_path(epoch=epoch)
+
+        if ckpt_path.is_file():
+            cprint(f"Resuming from checkpoint {ckpt_path}", 'magenta')
+            self.load_checkpoint(path=ckpt_path)
         
         # configure env
         env_runner: BaseRunner
@@ -355,7 +361,7 @@ class TrainDP3Workspace:
         policy.eval()
         policy.cuda()
 
-        runner_log = env_runner.run(policy)
+        runner_log = env_runner.run(policy, epoch=epoch)
         
       
         cprint(f"---------------- Eval Results --------------", 'magenta')
@@ -371,12 +377,14 @@ class TrainDP3Workspace:
         return output_dir
     
 
-    def save_checkpoint(self, path=None, tag='latest', 
+    def save_checkpoint(self, path=None, tag='latest', epoch=None,
             exclude_keys=None,
             include_keys=None,
             use_thread=False):
-        if path is None:
+        if path is None and epoch is None:
             path = pathlib.Path(self.output_dir).joinpath('checkpoints', f'{tag}.ckpt')
+        elif path is None and epoch is not None:
+            path = pathlib.Path(self.output_dir).joinpath('checkpoints', f'{epoch}.ckpt')
         else:
             path = pathlib.Path(path)
         if exclude_keys is None:
@@ -412,7 +420,9 @@ class TrainDP3Workspace:
         torch.cuda.empty_cache()
         return str(path.absolute())
     
-    def get_checkpoint_path(self, tag='latest'):
+    def get_checkpoint_path(self, tag='latest', epoch=None):
+        if epoch is not None:
+            return pathlib.Path(self.output_dir).joinpath('checkpoints', f'{epoch}.ckpt')
         if tag=='latest':
             return pathlib.Path(self.output_dir).joinpath('checkpoints', f'{tag}.ckpt')
         elif tag=='best': 
