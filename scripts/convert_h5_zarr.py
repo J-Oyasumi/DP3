@@ -45,6 +45,7 @@ def main(args):
             state = traj['obs']['agent']['qpos'][:steps]
             action = traj['actions'][:steps]
             pointcloud = traj['obs']['pointcloud'][:steps]
+            pointcloud[:, :, 3:6] = pointcloud[:, :, 3:6] * 255.0
             
             all_states.append(state)
             all_actions.append(action)

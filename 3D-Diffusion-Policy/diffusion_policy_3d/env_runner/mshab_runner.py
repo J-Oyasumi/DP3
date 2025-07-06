@@ -12,11 +12,9 @@ from diffusion_policy_3d.policy.base_policy import BasePolicy
 from diffusion_policy_3d.common.utils import dict_apply
 from diffusion_policy_3d.env_runner.base_runner import BaseRunner
 import diffusion_policy_3d.common.logger_util as logger_util
-from diffusion_policy_3d.wrapper.multistep_wrapper import MultiStepWrapper
-from diffusion_policy_3d.wrapper.observation_wrapper import FlattenPoindCloudObservationWrapper
 from mshab.envs.planner import plan_data_from_file
 from collections import deque
-import imageio
+
 
 class MSHABRunner(BaseRunner):
     def __init__(
@@ -64,7 +62,6 @@ class MSHABRunner(BaseRunner):
         self.n_obs_steps = n_obs_steps
         self.n_action_steps = n_action_steps
         self.max_episode_steps = max_episode_steps
-        cprint(f"[Env]: n_obs_steps: {n_obs_steps} n_action_steps: {n_action_steps} max_episode_steps: {max_episode_steps}", 'yellow')
         
     
     def run(self, policy, seed=0, epoch=None):
@@ -82,14 +79,7 @@ class MSHABRunner(BaseRunner):
         all_success_rates = []
         base_seed = 2024
         
-        debug = False
-
-
         for episode in tqdm(range(self.eval_episodes), desc="Evaluating"):
-            if debug:
-                video_frames_head = []
-                video_frames_hand = []
-        
             state_window = deque(maxlen=self.n_obs_steps)
             pcd_window = deque(maxlen=self.n_obs_steps)
 
@@ -111,10 +101,8 @@ class MSHABRunner(BaseRunner):
                 point_cloud=torch.stack(list(pcd_window), dim=0).unsqueeze(0).to(device=device),
             )
             
-
             policy.reset()
             
-
             step = 0
             done = False
             success = 0
@@ -125,15 +113,7 @@ class MSHABRunner(BaseRunner):
                 actions = action_dict['action'].squeeze(0)
                 for action in actions:
                     obs, reward, terminated, truncated, info = self.env.step(action)
-                    step += 1
-                    
-                    if debug:
-                        head_img = obs['sensor_data']['fetch_head']['rgb'].squeeze(0).cpu().numpy()
-                        hand_img = obs['sensor_data']['fetch_hand']['rgb'].squeeze(0).cpu().numpy()
-                        
-                        video_frames_head.append(head_img)
-                        video_frames_hand.append(hand_img)
-                    
+                    step += 1           
                     state = torch.cat([
                                         obs['agent']['qpos'], obs['extra']['obj_pose_wrt_base'], 
                                         obs['extra']['tcp_pose_wrt_base'], obs['extra']['goal_pos_wrt_base'],
@@ -155,17 +135,7 @@ class MSHABRunner(BaseRunner):
                         done = True
                         break
             
-            cprint('success', 'green') if success else cprint('fail', 'green')
-            cprint(step, 'green')
-
-            if debug:
-                with imageio.get_writer(f'debug_video_{episode}.mp4', mode='I', fps=20) as writer:
-                    for frame in zip(video_frames_head, video_frames_hand):
-                        head_img = frame[0]
-                        hand_img = frame[1]
-                        combined_img = np.concatenate([head_img, hand_img], axis=1)
-                        writer.append_data(combined_img)
-
+            cprint('success', 'green') if success else cprint('fail', 'red')
             all_success_rates.append(success) 
         
         test_mean_score = np.mean(all_success_rates)
@@ -175,7 +145,6 @@ class MSHABRunner(BaseRunner):
                 f.write(f"eval_episodes: {self.eval_episodes} SN: {np.sum(all_success_rates)} Epoch:{epoch}\n")
                 cprint(f'eval res appendeded', 'green')
         
-
         log_data = dict(
             test_mean_score=test_mean_score,
         )
